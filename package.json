@@ -1,6 +1,6 @@
 {
   "name": "@warpmetrics/mcp",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "mcpName": "io.github.warpmetrics/mcp",
   "description": "MCP server for Warpmetrics - connect AI assistants to your AI agent telemetry",
   "main": "dist/index.js",
