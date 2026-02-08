@@ -7,3 +7,4 @@ scripts/
 *.log
 .env
 .mcpregistry*
+.idea
