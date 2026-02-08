@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.warpmetrics/warpmetrics-mcp",
+  "description": "Connect AI assistants to your Warpmetrics AI agent telemetry — query runs, calls, costs, and outcomes.",
+  "repository": {
+    "url": "https://github.com/warpmetrics/mcp",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@warpmetrics/mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

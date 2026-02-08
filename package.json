@@ -1,0 +1,45 @@
+{
+  "name": "@warpmetrics/mcp",
+  "version": "1.0.0",
+  "mcpName": "io.github.warpmetrics/warpmetrics-mcp",
+  "description": "MCP server for Warpmetrics - connect AI assistants to your AI agent telemetry",
+  "main": "dist/index.js",
+  "bin": {
+    "warpmetrics-mcp": "./dist/cli.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --platform=node --format=esm --outfile=dist/index.js --external:@modelcontextprotocol/sdk && node scripts/build-cli.js",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js",
+    "release": "./scripts/release.sh",
+    "release:minor": "./scripts/release.sh minor",
+    "release:major": "./scripts/release.sh major"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "mcp",
+    "warpmetrics",
+    "llm",
+    "observability",
+    "ai",
+    "claude"
+  ],
+  "author": "Warpmetrics",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/warpmetrics/mcp"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  }
+}
