@@ -6,12 +6,12 @@
     "url": "https://github.com/warpmetrics/mcp",
     "source": "github"
   },
-  "version": "0.0.1",
+  "version": "0.0.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@warpmetrics/mcp",
-      "version": "0.0.1",
+      "version": "0.0.3",
       "transport": {
         "type": "stdio"
       }
