@@ -4,7 +4,9 @@
   "mcpName": "io.github.warpmetrics/mcp",
   "description": "MCP server for Warpmetrics - connect AI assistants to your AI agent telemetry",
   "main": "dist/index.js",
-  "bin": "./dist/cli.js",
+  "bin": {
+    "@warpmetrics/mcp": "./dist/cli.js"
+  },
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.js --bundle --platform=node --format=esm --outfile=dist/index.js --external:@modelcontextprotocol/sdk && node scripts/build-cli.js",
