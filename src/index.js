@@ -14,7 +14,7 @@ const apiKey = process.env.WARPMETRICS_API_KEY;
 const fixedProjectId = process.env.WARPMETRICS_PROJECT_ID || null;
 
 // Detect org-scoped key by prefix
-const isOrgKey = apiKey && (apiKey.startsWith("sk_live_org_") || apiKey.startsWith("sk_test_org_"));
+const isOrgKey = apiKey?.startsWith("sk_live_org_") || apiKey?.startsWith("sk_test_org_");
 
 // Handle --list-tools flag
 if (process.argv.includes("--list-tools") || process.argv.includes("-l")) {
@@ -288,18 +288,28 @@ function formatResponse(response) {
 
 // Cache of projects for validation
 let cachedProjects = null;
+let fetchProjectsPromise = null;
 
 async function fetchProjects() {
-  const response = await fetch(`${BASE_URL}/v1/projects`, {
-    method: "GET",
-    headers: { "Authorization": `Bearer ${apiKey}` },
-  });
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error?.message || "Failed to fetch projects");
-  }
-  cachedProjects = data.data;
-  return cachedProjects;
+  if (cachedProjects) return cachedProjects;
+  if (fetchProjectsPromise) return fetchProjectsPromise;
+  fetchProjectsPromise = (async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/v1/projects`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${apiKey}` },
+      });
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error?.message || "Failed to fetch projects");
+      }
+      cachedProjects = data.data;
+      return cachedProjects;
+    } finally {
+      fetchProjectsPromise = null;
+    }
+  })();
+  return fetchProjectsPromise;
 }
 
 async function main() {
@@ -341,6 +351,9 @@ async function main() {
       }
     } catch (err) {
       console.error(`Warning: Could not pre-fetch projects: ${err.message}`);
+      if (err.message.includes("401") || err.message.includes("403") || err.message.includes("Unauthorized") || err.message.includes("Forbidden")) {
+        throw err;
+      }
     }
   }
 
@@ -381,6 +394,13 @@ async function main() {
           const available = projects.map(p => `  ${p.id} \u2014 ${p.name}`).join("\n");
           return {
             content: [{ type: "text", text: `Error: Project "${targetId}" not found. Available projects:\n${available}` }],
+            isError: true,
+          };
+        }
+
+        if (fixedProjectId) {
+          return {
+            content: [{ type: "text", text: `Error: Cannot switch projects — project is locked to ${fixedProjectId} via WARPMETRICS_PROJECT_ID.` }],
             isError: true,
           };
         }
