@@ -11,6 +11,10 @@ const pkg = require("../package.json");
 
 const BASE_URL = process.env.WARPMETRICS_API_URL || "https://api.warpmetrics.com";
 const apiKey = process.env.WARPMETRICS_API_KEY;
+const fixedProjectId = process.env.WARPMETRICS_PROJECT_ID || null;
+
+// Detect org-scoped key by prefix
+const isOrgKey = apiKey && (apiKey.startsWith("sk_live_org_") || apiKey.startsWith("sk_test_org_"));
 
 // Handle --list-tools flag
 if (process.argv.includes("--list-tools") || process.argv.includes("-l")) {
@@ -29,8 +33,9 @@ Options:
   --help, -h        Show this help message
 
 Environment:
-  WARPMETRICS_API_KEY  (required) Your Warpmetrics API key
-  WARPMETRICS_API_URL  API URL (default: https://api.warpmetrics.com)
+  WARPMETRICS_API_KEY     (required) Your Warpmetrics API key
+  WARPMETRICS_API_URL     API URL (default: https://api.warpmetrics.com)
+  WARPMETRICS_PROJECT_ID  Lock to a specific project (optional, for org-scoped keys)
 
 For more info: https://warpmetrics.com/docs/mcp
 `);
@@ -73,6 +78,14 @@ async function listTools() {
       console.log(`  ${tool.name}`);
       console.log(`    ${tool.summary}`);
     }
+    console.log();
+  }
+
+  if (isOrgKey && !fixedProjectId) {
+    console.log("Multi-project Tools (org-scoped key)");
+    console.log("\u2500".repeat(40));
+    console.log("  switch_project");
+    console.log("    Switch the active project context for subsequent calls");
     console.log();
   }
 
@@ -144,6 +157,9 @@ function generateToolsFromOpenAPI(spec) {
   return { tools, pathMap };
 }
 
+// Active project ID state for org-scoped keys
+let activeProjectId = fixedProjectId || null;
+
 /**
  * Execute an API call
  */
@@ -170,11 +186,18 @@ async function executeAPICall(pathInfo, args) {
     url += `?${queryString}`;
   }
 
+  const headers = {
+    "Authorization": `Bearer ${apiKey}`,
+  };
+
+  // Add X-Project-Id header for org-scoped keys
+  if (activeProjectId) {
+    headers["X-Project-Id"] = activeProjectId;
+  }
+
   const response = await fetch(url, {
     method: "GET",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-    },
+    headers,
   });
 
   let data;
@@ -263,10 +286,63 @@ function formatResponse(response) {
   return formatObject(data);
 }
 
+// Cache of projects for validation
+let cachedProjects = null;
+
+async function fetchProjects() {
+  const response = await fetch(`${BASE_URL}/v1/projects`, {
+    method: "GET",
+    headers: { "Authorization": `Bearer ${apiKey}` },
+  });
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error?.message || "Failed to fetch projects");
+  }
+  cachedProjects = data.data;
+  return cachedProjects;
+}
+
 async function main() {
   console.error("Fetching API schema...");
   const { tools, pathMap } = await fetchToolsFromAPI();
   console.error(`Loaded ${tools.length} tools from API`);
+
+  const allTools = [...tools];
+
+  // For org-scoped keys without a fixed project, add switch_project tool
+  const multiProjectMode = isOrgKey && !fixedProjectId;
+
+  if (multiProjectMode) {
+    allTools.push({
+      name: "switch_project",
+      description: "Switch the active project context. All subsequent data queries will use this project. Use list_projects first to discover available project IDs.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectId: {
+            type: "string",
+            description: "The project ID to switch to",
+          },
+        },
+        required: ["projectId"],
+      },
+    });
+
+    console.error("Multi-project mode enabled (org-scoped key detected)");
+
+    // Pre-fetch projects to auto-select if only one exists
+    try {
+      const projects = await fetchProjects();
+      if (projects.length === 1) {
+        activeProjectId = projects[0].id;
+        console.error(`Auto-selected project: ${projects[0].name} (${projects[0].id})`);
+      } else {
+        console.error(`${projects.length} projects available. Use list_projects and switch_project to select one.`);
+      }
+    } catch (err) {
+      console.error(`Warning: Could not pre-fetch projects: ${err.message}`);
+    }
+  }
 
   const server = new Server(
     { name: pkg.name, version: pkg.version },
@@ -274,11 +350,53 @@ async function main() {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools };
+    return { tools: allTools };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+
+    // Handle switch_project locally
+    if (name === "switch_project") {
+      if (!multiProjectMode) {
+        return {
+          content: [{ type: "text", text: "Error: switch_project is only available with org-scoped API keys." }],
+          isError: true,
+        };
+      }
+
+      const targetId = args?.projectId;
+      if (!targetId) {
+        return {
+          content: [{ type: "text", text: "Error: projectId is required" }],
+          isError: true,
+        };
+      }
+
+      // Validate the project exists in the org
+      try {
+        const projects = await fetchProjects();
+        const project = projects.find(p => p.id === targetId);
+        if (!project) {
+          const available = projects.map(p => `  ${p.id} \u2014 ${p.name}`).join("\n");
+          return {
+            content: [{ type: "text", text: `Error: Project "${targetId}" not found. Available projects:\n${available}` }],
+            isError: true,
+          };
+        }
+
+        activeProjectId = targetId;
+        return {
+          content: [{ type: "text", text: `Switched to project: ${project.name} (${project.id})` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Error: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+
     const pathInfo = pathMap[name];
 
     if (!pathInfo) {
