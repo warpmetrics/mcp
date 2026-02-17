@@ -378,6 +378,13 @@ async function main() {
         };
       }
 
+      if (fixedProjectId) {
+        return {
+          content: [{ type: "text", text: `Error: Cannot switch projects — project is locked to ${fixedProjectId} via WARPMETRICS_PROJECT_ID.` }],
+          isError: true,
+        };
+      }
+
       const targetId = args?.projectId;
       if (!targetId) {
         return {
@@ -394,13 +401,6 @@ async function main() {
           const available = projects.map(p => `  ${p.id} \u2014 ${p.name}`).join("\n");
           return {
             content: [{ type: "text", text: `Error: Project "${targetId}" not found. Available projects:\n${available}` }],
-            isError: true,
-          };
-        }
-
-        if (fixedProjectId) {
-          return {
-            content: [{ type: "text", text: `Error: Cannot switch projects — project is locked to ${fixedProjectId} via WARPMETRICS_PROJECT_ID.` }],
             isError: true,
           };
         }
